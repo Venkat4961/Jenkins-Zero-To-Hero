@@ -28,13 +28,13 @@ pipeline {
         }
       }
     }
-    stage('Build and Push Docker Image') {
+/*   stage('Build and Push Docker Image') {
       environment {
         DOCKER_IMAGE = "avvinay1993/boot-app:${BUILD_NUMBER}"
         // DOCKERFILE_LOCATION = "java-maven-sonar-argocd-helm-k8s/spring-boot-app/Dockerfile"
         REGISTRY_CREDENTIALS = credentials('docker-cred')
       }
-      steps {
+    steps {
         script {
             sh 'cd java-maven-sonar-argocd-helm-k8s/spring-boot-app && docker build -t ${DOCKER_IMAGE} .'
             def dockerImage = docker.image("${DOCKER_IMAGE}")
@@ -43,7 +43,33 @@ pipeline {
             }
         }
       }
-    }
+    }*/
+        stage('Build and Push Docker Image') {
+            environment {
+                 DOCKER_IMAGE_NAME = 'avvinay1993/boot-app'
+                 DOCKER_IMAGE_TAG = "${BUILD_NUMBER}"
+                 DOCKER_ACCESS_TOKEN_ID = 'docker-cred'  // ID of the Jenkins credential storing the Docker access token
+   
+            }
+
+            steps {
+                script {
+                    // Change to your project directory
+                    dir('java-maven-sonar-argocd-helm-k8s/spring-boot-app/Dockerfile') {
+                        // Build the Docker image
+                        sh "docker build -t ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} ."
+
+
+                        withCredentials([string(credentialsId: DOCKER_ACCESS_TOKEN_ID, variable: 'DOCKER_ACCESS_TOKEN')]) {
+                            sh "docker login -u _token -p ${DOCKER_ACCESS_TOKEN} https://hub.docker.com"  // Replace 'registry.example.com' with your registry URL                        // Authenticate with Docker registry and push the image
+                            sh "docker push ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
+                        }
+
+                    }
+                }
+            }
+        }
+
     stage('Update Deployment File') {
         environment {
             GIT_REPO_NAME = "Jenkins-Zero-To-Hero"
