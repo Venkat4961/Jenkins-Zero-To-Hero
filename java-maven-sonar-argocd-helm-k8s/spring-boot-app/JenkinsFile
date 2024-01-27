@@ -1,9 +1,9 @@
 pipeline {
   agent any
-
     tools{
-      maven "MAVEN_HOME"    
-  }
+       maven "MAVEN_HOME"
+   }
+  
   stages {
     stage('Checkout') {
       steps {
@@ -13,63 +13,46 @@ pipeline {
     }
     stage('Build and Test') {
       steps {
-        //sh 'ls -ltr'
         // build the project and create a JAR file
         sh 'cd java-maven-sonar-argocd-helm-k8s/spring-boot-app && mvn clean package'
       }
     }
-    stage('Static Code Analysis') {
+   stage('Static Code Analysis') {
       environment {
-        SONAR_URL = "http://34.122.240.73:9000"
+        SONAR_URL = "https://34.122.240.73:9000"
       }
       steps {
-        withCredentials([string(credentialsId: 'sonar-create', variable: 'SONAR_AUTH_TOKEN')]) {
+        withCredentials([string(credentialsId: 'sonarqube', variable: 'SONAR_AUTH_TOKEN')]) {
           sh 'cd java-maven-sonar-argocd-helm-k8s/spring-boot-app && mvn sonar:sonar -Dsonar.login=$SONAR_AUTH_TOKEN -Dsonar.host.url=${SONAR_URL}'
         }
       }
-    }
-/*   stage('Build and Push Docker Image') {
+    } 
+    stage('Build and Push Docker Image') {
       environment {
-        DOCKER_IMAGE = "avvinay1993/boot-app:${BUILD_NUMBER}"
+        DOCKER_IMAGE = "avvinay1993/spring-app:${BUILD_NUMBER}"
         // DOCKERFILE_LOCATION = "java-maven-sonar-argocd-helm-k8s/spring-boot-app/Dockerfile"
-        REGISTRY_CREDENTIALS = credentials('docker-cred')
+       REGISTRY_CREDENTIALS = credentials('docker-cred')
       }
-    steps {
+      steps {
         script {
             sh 'cd java-maven-sonar-argocd-helm-k8s/spring-boot-app && docker build -t ${DOCKER_IMAGE} .'
+              withCredentials([usernamePassword(credentialsId: 'docker-cred', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                
+                sh "echo \${DOCKER_PASSWORD} | docker login -u \${DOCKER_USERNAME} --password-stdin"
+                sh "docker push ${DOCKER_IMAGE}"
+                
+            }
+
+         /*  sh 'echo $REGISTRY_CREDENTIALS_PSW | docker login -u $REGISTRY_CREDENTIALS_USR --password-stdin'
+            sh  "docker push ${DOCKER_IMAGE}"
+     
             def dockerImage = docker.image("${DOCKER_IMAGE}")
             docker.withRegistry('https://hub.docker.com', "docker-cred") {
                 dockerImage.push()
-            }
+            } */
         }
       }
-    }*/
-        stage('Build and Push Docker Image') {
-            environment {
-                 DOCKER_IMAGE_NAME = 'avvinay1993/boot-app'
-                 DOCKER_IMAGE_TAG = "${BUILD_NUMBER}"
-                 DOCKER_ACCESS_TOKEN_ID = 'docker-cred'  // ID of the Jenkins credential storing the Docker access token
-   
-            }
-
-            steps {
-                script {
-                    // Change to your project directory
-                    dir('java-maven-sonar-argocd-helm-k8s/spring-boot-app/Dockerfile') {
-                        // Build the Docker image
-                        sh "docker build -t ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} ."
-
-
-                        withCredentials([string(credentialsId: DOCKER_ACCESS_TOKEN_ID, variable: 'DOCKER_ACCESS_TOKEN')]) {
-                            sh "docker login -u _token -p ${DOCKER_ACCESS_TOKEN} https://hub.docker.com"  // Replace 'registry.example.com' with your registry URL                        // Authenticate with Docker registry and push the image
-                            sh "docker push ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
-                        }
-
-                    }
-                }
-            }
-        }
-
+    }
     stage('Update Deployment File') {
         environment {
             GIT_REPO_NAME = "Jenkins-Zero-To-Hero"
@@ -80,8 +63,8 @@ pipeline {
                 sh '''
                     git config user.email "vinaykumaraluri@gmail.com"
                     git config user.name "Venkat4961"
-                    BUILD_NUMBER=${BUILD_NUMBER}
-                    sed -i "s/replaceImageTag/${BUILD_NUMBER}/g" java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
+                    BUILD_NUMBER=\${BUILD_NUMBER}
+                    sed -i "s/replaceImageTag/'"${BUILD_NUMBER}"'/g" java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
                     git add java-maven-sonar-argocd-helm-k8s/spring-boot-app-manifests/deployment.yml
                     git commit -m "Update deployment image to version ${BUILD_NUMBER}"
                     git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
